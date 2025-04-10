@@ -35,10 +35,6 @@ def init_obj(opt, logger, *args, default_file_name='default file', given_module=
 
         class_name = name[1]  # extract class name from the list
 
-
-
-
-
         attr = getattr(module, class_name)
         kwargs = opt.get('args', {})
         kwargs.update(modify_kwargs)

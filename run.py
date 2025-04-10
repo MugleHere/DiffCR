@@ -17,20 +17,20 @@ from models import create_model, define_network, define_loss, define_metric
 import sys
 
 
-# for training
-#sys.argv = [
-#    "run.py",
-#    "--config", "config/solafune.json",
-#    "--phase", "train",
-#    "--gpu_ids", "0"
-#]
-
+#for training
 sys.argv = [
     "run.py",
-    "--config", "config/solafune_test.json",
-    "--phase", "test",
+    "--config", "config/solafune.json",
+    "--phase", "train",
     "--gpu_ids", "0"
 ]
+
+#sys.argv = [
+#    "run.py",
+#    "--config", "config/solafune_test.json",
+#    "--phase", "test",
+#    "--gpu_ids", "0"
+#]
 
 
 
@@ -107,8 +107,16 @@ def main_worker(gpu, ngpus_per_node, opt):
             dataloader = phase_loader
             optimizer = torch.optim.Adam(model.parameters(), lr=opt.get('lr', 1e-4))
             max_epoch = opt.get('epochs', 50)
+            # === Resume logic ===
+            start_epoch = 0
+            resume_ckpt_path = os.path.join(opt['save_dir'], "model_epoch6.pth")  # change to latest available
 
-            for epoch in range(max_epoch):  
+            if os.path.exists(resume_ckpt_path):
+                print(f"🔁 Resuming from {resume_ckpt_path}")
+                model.load_state_dict(torch.load(resume_ckpt_path, map_location="cuda"))
+                start_epoch = 6  # must match checkpoint epoch
+
+            for epoch in range(start_epoch, max_epoch):
                 print(f"\n[Epoch {epoch+1}/{max_epoch}]")
                 for i, data in enumerate(dataloader):
                     gt = data['y0'].cuda(non_blocking=True)
