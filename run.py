@@ -4,11 +4,45 @@ import warnings
 import torch
 import torch.multiprocessing as mp
 
+import torchvision.utils as vutils
+
+import tifffile
+
 from core.logger import VisualWriter, InfoLogger
 import core.praser as Praser
 import core.util as Util
 from data import define_dataloader
 from models import create_model, define_network, define_loss, define_metric
+
+import sys
+
+
+# for training
+#sys.argv = [
+#    "run.py",
+#    "--config", "config/solafune.json",
+#    "--phase", "train",
+#    "--gpu_ids", "0"
+#]
+
+sys.argv = [
+    "run.py",
+    "--config", "config/solafune_test.json",
+    "--phase", "test",
+    "--gpu_ids", "0"
+]
+
+
+
+def tensor_to_rgb(tensor):
+    """Convert 12-channel tensor to 3-channel RGB for visualization (normalizes values)."""
+    # Pick Sentinel-2-like RGB: bands 4,3,2 → indices 3,2,1 (but your case seems 2,1,0)
+    rgb = tensor[0, [2, 1, 0], :, :]  # shape: [3, H, W]
+    rgb = rgb - rgb.min()
+    rgb = rgb / (rgb.max() + 1e-8)
+    return rgb.clamp(0, 1)
+
+
 
 def main_worker(gpu, ngpus_per_node, opt):
     """  threads running on each GPU """
@@ -35,31 +69,96 @@ def main_worker(gpu, ngpus_per_node, opt):
 
     '''set networks and dataset'''
     phase_loader, val_loader = define_dataloader(phase_logger, opt) # val_loader is None if phase is test.
+    print("▶ Number of training samples in dataset:", len(phase_loader.dataset))
+    print("▶ Dataloader length (steps per epoch):", len(phase_loader))
+
     networks = [define_network(phase_logger, opt, item_opt) for item_opt in opt['model']['which_networks']]
 
     ''' set metrics, loss, optimizer and  schedulers '''
-    metrics = [define_metric(phase_logger, item_opt) for item_opt in opt['model']['which_metrics']]
+    #metrics = [define_metric(phase_logger, item_opt) for item_opt in opt['model']['which_metrics']] # original instead of lines below
+    metrics = []
+    if opt['model'].get('which_metrics') is not None:
+        metrics = [define_metric(phase_logger, item_opt) for item_opt in opt['model']['which_metrics']]
+
     losses = [define_loss(phase_logger, item_opt) for item_opt in opt['model']['which_losses']]
 
     model = create_model(
-        opt = opt,
-        networks = networks,
-        phase_loader = phase_loader,
-        val_loader = val_loader,
-        losses = losses,
-        metrics = metrics,
-        logger = phase_logger,
-        writer = phase_writer
+        opt=opt,
+        networks=networks,
+        phase_loader=phase_loader,
+        val_loader=val_loader,
+        losses=losses,
+        metrics=metrics,
+        logger=phase_logger,
+        writer=phase_writer
     )
 
+
+
     phase_logger.info('Begin model {}.'.format(opt['phase']))
+
     try:
+        #if opt['phase'] == 'train':
+        #    print("Calling model.train() now")
+        #    model.train()
+        #    print("model.train() returned successfully")
         if opt['phase'] == 'train':
             model.train()
+            dataloader = phase_loader
+            optimizer = torch.optim.Adam(model.parameters(), lr=opt.get('lr', 1e-4))
+            max_epoch = opt.get('epochs', 50)
+
+            for epoch in range(max_epoch):  
+                print(f"\n[Epoch {epoch+1}/{max_epoch}]")
+                for i, data in enumerate(dataloader):
+                    gt = data['y0'].cuda(non_blocking=True)
+                    cond = data['x'].cuda(non_blocking=True)
+
+                    optimizer.zero_grad()
+                    loss = model(gt, cond)
+                    loss.backward()
+                    optimizer.step()
+
+                    print(f"  Iter {i:04d} | Loss: {loss.item():.6f}")
+
+                checkpoint_dir = opt['save_dir']
+                os.makedirs(checkpoint_dir, exist_ok=True)
+                save_path = os.path.join(checkpoint_dir, f"model_epoch{epoch+1}.pth")
+                torch.save(model.state_dict(), save_path)
+        elif opt['phase'] == 'test':
+            model.load_state_dict(torch.load("checkpoints/model_epoch6.pth"))
+            model.eval()
+
+            for i, data in enumerate(phase_loader):
+                cond = data['x'].cuda()
+                filename = f"sample_{i:03d}"
+                print("before restoration")
+                with torch.no_grad():
+                    dummy_y0 = torch.zeros_like(cond)
+                    output, _ = model.restoration(y_cond=cond, y_0=dummy_y0)  # shape: [1, 12, H, W]
+                print("after restoration")
+                # === Save 12-channel .tif for future use ===
+                out_np = output[0].cpu().numpy().astype('float32')  # [12, H, W]
+                out_tif_path = os.path.join(opt['path']['result'], f"{filename}.tif")
+                tifffile.imwrite(out_tif_path, out_np)
+                print("saved 12 channel")
+                # === Save RGB visualization as PNG ===
+                rgb_output = tensor_to_rgb(output)  # [3, H, W], float in [0, 1]
+                out_png_path = os.path.join(opt['path']['result'], f"{filename}.png")
+                vutils.save_image(rgb_output, out_png_path)
+                print("saved 3 channel")
+                print(f"Saved: {out_png_path}, {out_tif_path}")
+                break # Remove this break to process all images
+
+
+
         else:
-            model.test()
+            #model.test()
+            raise ValueError(f"Unsupported phase: {opt['phase']}")
     finally:
+        print("Closing writer")
         phase_writer.close()
+
         
         
 if __name__ == '__main__':

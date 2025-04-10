@@ -32,7 +32,13 @@ def init_obj(opt, logger, *args, default_file_name='default file', given_module=
             module = given_module
         else:
             module = importlib.import_module(file_name)
-        
+
+        class_name = name[1]  # extract class name from the list
+
+
+
+
+
         attr = getattr(module, class_name)
         kwargs = opt.get('args', {})
         kwargs.update(modify_kwargs)
@@ -137,9 +143,13 @@ def parse(args):
             opt['path'][key] = os.path.join(experiments_root, path)
             mkdirs(opt['path'][key])
 
+#    ''' debug mode '''
+#    if 'debug' in opt['name']:
+#        opt['train'].update(opt['debug'])
     ''' debug mode '''
-    if 'debug' in opt['name']:
+    if 'debug' in opt['name'] and 'debug' in opt:
         opt['train'].update(opt['debug'])
+
 
     ''' code backup ''' 
     for name in os.listdir('.'):

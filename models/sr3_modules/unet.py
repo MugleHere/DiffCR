@@ -11,7 +11,7 @@ class UNet(nn.Module):
         inner_channel=32,
         norm_groups=32,
         channel_mults=(1, 2, 4, 8, 8),
-        attn_res=(8),
+        attn_res=(8,),#attn_res=(8),
         res_blocks=3,
         dropout=0,
         with_noise_level_emb=True,
@@ -52,12 +52,19 @@ class UNet(nn.Module):
                 now_res = now_res//2
         self.downs = nn.ModuleList(downs)
 
+        #self.mid = nn.ModuleList([
+        #    ResnetBlocWithAttn(pre_channel, pre_channel, noise_level_emb_dim=noise_level_channel, norm_groups=norm_groups,
+        #                       dropout=dropout, with_attn=True),
+        #    ResnetBlocWithAttn(pre_channel, pre_channel, noise_level_emb_dim=noise_level_channel, norm_groups=norm_groups,
+        #                       dropout=dropout, with_attn=False)
+        #])
         self.mid = nn.ModuleList([
             ResnetBlocWithAttn(pre_channel, pre_channel, noise_level_emb_dim=noise_level_channel, norm_groups=norm_groups,
-                               dropout=dropout, with_attn=True),
+                            dropout=dropout, with_attn=(image_size in attn_res)),
             ResnetBlocWithAttn(pre_channel, pre_channel, noise_level_emb_dim=noise_level_channel, norm_groups=norm_groups,
-                               dropout=dropout, with_attn=False)
+                            dropout=dropout, with_attn=False)
         ])
+
 
         ups = []
         for ind in reversed(range(num_mults)):
@@ -78,30 +85,30 @@ class UNet(nn.Module):
         self.final_conv = Block(pre_channel, default(out_channel, in_channel), groups=norm_groups)
 
     def forward(self, x, time):
-        t = self.noise_level_mlp(time) if exists(
-            self.noise_level_mlp) else None
+        # Ensure time is on the same device and float type
+        time = time.to(x.device).float()
+
+        if self.noise_level_mlp is not None:
+            if time.device != next(self.noise_level_mlp.parameters()).device:
+                self.noise_level_mlp = self.noise_level_mlp.to(time.device)
+            t = self.noise_level_mlp(time)
+        else:
+            t = None
+
 
         feats = []
         for layer in self.downs:
-            if isinstance(layer, ResnetBlocWithAttn):
-                x = layer(x, t)
-            else:
-                x = layer(x)
+            x = layer(x, t) if isinstance(layer, ResnetBlocWithAttn) else layer(x)
             feats.append(x)
 
         for layer in self.mid:
-            if isinstance(layer, ResnetBlocWithAttn):
-                x = layer(x, t)
-            else:
-                x = layer(x)
+            x = layer(x, t) if isinstance(layer, ResnetBlocWithAttn) else layer(x)
 
         for layer in self.ups:
-            if isinstance(layer, ResnetBlocWithAttn):
-                x = layer(torch.cat((x, feats.pop()), dim=1), t)
-            else:
-                x = layer(x)
+            x = layer(torch.cat((x, feats.pop()), dim=1), t) if isinstance(layer, ResnetBlocWithAttn) else layer(x)
 
         return self.final_conv(x)
+
 
 
 # PositionalEncoding Source： https://github.com/lmnt-com/wavegrad/blob/master/src/wavegrad/model.py
@@ -111,11 +118,15 @@ class PositionalEncoding(nn.Module):
         self.dim = dim
 
     def forward(self, noise_level):
+
         count = self.dim // 2
         step = torch.arange(count, dtype=noise_level.dtype, device=noise_level.device) / count
-        encoding = noise_level.unsqueeze(1) * torch.exp(-math.log(1e4) * step.unsqueeze(0))
+        encoding = noise_level * torch.exp(-math.log(1e4) * step)
         encoding = torch.cat([torch.sin(encoding), torch.cos(encoding)], dim=-1)
-        return encoding
+        #print(f"PosEnc input device: {noise_level.device}, output shape: {encoding.shape}")
+
+        return encoding.to(noise_level.device)  # 💥 ensure output is on CUDA
+
 
 
 class FeatureWiseAffine(nn.Module):

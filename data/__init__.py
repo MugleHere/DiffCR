@@ -8,6 +8,9 @@ from torch.utils.data import DataLoader, Subset
 import core.util as Util
 from core.praser import init_obj
 
+from data.solafune_cloudremoval import SolafuneCloudRemovalDataset
+
+
 
 def define_dataloader(logger, opt):
     """ create train/test dataloader and validation dataloader,  validation dataloader is None when phase is test or not GPU 0 """
@@ -35,15 +38,17 @@ def define_dataloader(logger, opt):
 
 
 def define_dataset(logger, opt):
-    ''' loading Dataset() class from given file's name '''
     dataset_opt = opt['datasets'][opt['phase']]['which_dataset']
     phase_dataset = init_obj(dataset_opt, logger, default_file_name='data.dataset', init_type='Dataset')
-    # val_dataset = None
-    val_dataset_opt = opt['datasets']['val']['which_dataset']
-    val_dataset = init_obj(val_dataset_opt, logger, default_file_name='data.dataset', init_type='Dataset')
+
+    val_dataset = None
+    if 'val' in opt['datasets']:
+        val_dataset_opt = opt['datasets']['val']['which_dataset']
+        val_dataset = init_obj(val_dataset_opt, logger, default_file_name='data.dataset', init_type='Dataset')
 
     valid_len = 0
     data_len = len(phase_dataset)
+
     if 'debug' in opt['name']:
         debug_split = opt['debug'].get('debug_split', 1.0)
         if isinstance(debug_split, int):
@@ -51,23 +56,12 @@ def define_dataset(logger, opt):
         else:
             data_len *= debug_split
 
-    # dataloder_opt = opt['datasets'][opt['phase']]['dataloader']
-    # valid_split = dataloder_opt.get('validation_split', 0)    
-    
-    # ''' divide validation dataset, valid_split==0 when phase is test or validation_split is 0. '''
-    # if valid_split > 0.0 or 'debug' in opt['name']: 
-    #     if isinstance(valid_split, int):
-    #         assert valid_split < data_len, "Validation set size is configured to be larger than entire dataset."
-    #         valid_len = valid_split
-    #     else:
-    #         valid_len = int(data_len * valid_split)
-    #     data_len -= valid_len
-    #     phase_dataset, val_dataset = subset_split(dataset=phase_dataset, lengths=[data_len, valid_len], generator=Generator().manual_seed(opt['seed']))
-    
-    logger.info('Dataset for {} have {} samples.'.format(opt['phase'], data_len))
-    if opt['phase'] == 'train':
-        logger.info('Dataset for {} have {} samples.'.format('val', valid_len))   
+    logger.info('Dataset for {} has {} samples.'.format(opt['phase'], data_len))
+    if opt['phase'] == 'train' and val_dataset is not None:
+        logger.info('Validation dataset has {} samples.'.format(len(val_dataset)))
+
     return phase_dataset, val_dataset
+
 
 def subset_split(dataset, lengths, generator):
     """

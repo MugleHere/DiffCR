@@ -6,6 +6,8 @@ import torch
 import random
 import numpy as np
 import tifffile as tiff
+from data.solafune_cloudremoval import SolafuneCloudRemovalDataset
+
 
 # from .util.mask import (bbox2mask, brush_stroke_mask,
 #                         get_irregular_mask, random_bbox, random_cropping_bbox)

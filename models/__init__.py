@@ -1,15 +1,23 @@
 from core.praser import init_obj
 
-def create_model(**cfg_model):
-    """ create_model """
-    opt = cfg_model['opt']
-    logger = cfg_model['logger']
+#def create_model(**cfg_model):
+#    """ create_model """
+#    opt = cfg_model['opt']
+#    logger = cfg_model['logger']
 
-    model_opt = opt['model']['which_model']
-    model_opt['args'].update(cfg_model)
-    model = init_obj(model_opt, logger, default_file_name='models.model', init_type='Model')
+#    model_opt = opt['model']['which_model']
+#    model_opt['args'].update(cfg_model)
+#    model = init_obj(model_opt, logger, default_file_name='models.model', init_type='Model')
 
+#    return model
+def create_model(opt, networks, phase_loader, val_loader, losses, metrics, logger, writer):
+    """ Standard DiffCR model creation without any wrapper logic """
+    model = networks[0]  # assumes only one model defined
+    model.set_loss(losses[0] if losses else None)
+    model.set_new_noise_schedule(phase=opt['phase'])
+    model = model.cuda()
     return model
+
 
 def define_network(logger, opt, network_opt):
     """ define network with weights initialization """
