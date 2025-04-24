@@ -31,8 +31,7 @@
         "which_dataset": {
           "name": ["data.dataset", "SolafuneCloudRemovalDataset"],
           "args": {
-            "data_root": "./data",
-            "indices": [0, 1, 2, 3, 4, 5]
+            "data_root": "./data"
           }
         },
         "dataloader": {
@@ -42,27 +41,12 @@
             "num_workers": 4
           }
         }
-      },
-      "val": {
-        "which_dataset": {
-          "name": ["data.dataset", "SolafuneCloudRemovalDataset"],
-          "args": {
-            "data_root": "./data",
-            "indices": [6, 7]
-          }
-        },
-        "dataloader": {
-          "args": {
-            "batch_size": 1,
-            "shuffle": false,
-            "num_workers": 2
-          }
-        }
       }
+
     },
   
     "save_dir": "checkpoints/",
-    "epochs": 100,
+    "epochs": 50,
     "lr": 1e-4,
   
     "model": {

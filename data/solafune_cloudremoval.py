@@ -31,8 +31,13 @@ def normalize_image(image):
 
 
 class SolafuneCloudRemovalDataset(Dataset):
-    def __init__(self, data_root, indices):
-        self.image_paths = [Path(data_root) / "train_images" / f"train_{i}.tif" for i in indices]
+    def __init__(self, data_root, indices=None):
+        all_paths = sorted(Path(data_root).joinpath("train_images").glob("train_*.tif"))
+        if indices is not None:
+            self.image_paths = [all_paths[i] for i in indices]
+        else:
+            self.image_paths = all_paths
+
 
     def __len__(self):
         return len(self.image_paths)
@@ -64,25 +69,14 @@ class SolafuneCloudyTestDataset(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        img = load_image(self.image_paths[idx])         # (H, W, 12)
-        img = img.transpose(2, 0, 1)                     # (12, H, W)
-        clean = normalize_image(img)                    # (12, H, W)
-        cloudy = self.add_synthetic_clouds(clean.copy())  # (12, H, W)
-
-        # === Random Crop Patch ===
-        patch_size = 128
-        _, H, W = clean.shape
-        top = np.random.randint(0, H - patch_size + 1)
-        left = np.random.randint(0, W - patch_size + 1)
-
-        clean_patch = clean[:, top:top+patch_size, left:left+patch_size]
-        cloudy_patch = cloudy[:, top:top+patch_size, left:left+patch_size]
+        img = load_image(self.image_paths[idx])  # (H, W, 12)
+        img = img.transpose(2, 0, 1)              # (12, H, W)
+        img = normalize_image(img)               # normalize input
 
         return {
-            'x': torch.from_numpy(cloudy_patch).float(),
-            'y0': torch.from_numpy(clean_patch).float()
+            'x': torch.from_numpy(img).float(),  # cloudy image
+            'meta': {'name': self.image_paths[idx].stem}  # filename for saving
         }
-
 
 
 
