@@ -64,14 +64,25 @@ class SolafuneCloudyTestDataset(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        img = load_image(self.image_paths[idx])  # (H, W, 12)
-        img = img.transpose(2, 0, 1)              # (12, H, W)
-        img = normalize_image(img)               # normalize input
+        img = load_image(self.image_paths[idx])         # (H, W, 12)
+        img = img.transpose(2, 0, 1)                     # (12, H, W)
+        clean = normalize_image(img)                    # (12, H, W)
+        cloudy = self.add_synthetic_clouds(clean.copy())  # (12, H, W)
+
+        # === Random Crop Patch ===
+        patch_size = 128
+        _, H, W = clean.shape
+        top = np.random.randint(0, H - patch_size + 1)
+        left = np.random.randint(0, W - patch_size + 1)
+
+        clean_patch = clean[:, top:top+patch_size, left:left+patch_size]
+        cloudy_patch = cloudy[:, top:top+patch_size, left:left+patch_size]
 
         return {
-            'x': torch.from_numpy(img).float(),  # cloudy image
-            'meta': {'name': self.image_paths[idx].stem}  # filename for saving
+            'x': torch.from_numpy(cloudy_patch).float(),
+            'y0': torch.from_numpy(clean_patch).float()
         }
+
 
 
 

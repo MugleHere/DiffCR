@@ -72,14 +72,14 @@
           "args": {
             "unet": {
               "in_channel": 24,
-              "out_channel": 12,  
-              "inner_channel": 32,
-              "channel_mults": [1, 2],
-              "res_blocks": 2,
-              "dropout": 0.1,
-              "attn_res": [],
-              "norm_groups": 32,
-              "image_size": 128
+              "out_channel": 12,
+              "inner_channel": 32,                    
+              "channel_mults": [1, 2, 4],            
+              "res_blocks": 2,               
+              "dropout": 0.05,                       
+              "attn_res": [],                      
+              "norm_groups": 16,                     
+              "image_size": 128                      
             },
             "beta_schedule": {
               "train": {
