@@ -57,18 +57,19 @@
             },
             "beta_schedule": {
               "train": {
-                "schedule": "linear",
+                "schedule": "sigmoid",
                 "n_timestep": 1000,
                 "linear_start": 1e-6,
                 "linear_end": 0.01
               },
               "test": {
-                "schedule": "linear",
-                "n_timestep": 1000,
+                "schedule": "sigmoid",
+                "n_timestep": 5,
                 "linear_start": 1e-6,
                 "linear_end": 0.01
               }
             }
+
           }
         }
       ],

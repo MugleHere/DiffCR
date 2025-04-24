@@ -106,15 +106,15 @@ def main_worker(gpu, ngpus_per_node, opt):
             model.train()
             dataloader = phase_loader
             optimizer = torch.optim.Adam(model.parameters(), lr=opt.get('lr', 1e-4))
-            max_epoch = opt.get('epochs', 50)
+            max_epoch = opt.get('epochs', 100)
             # === Resume logic ===
-            start_epoch = 0
-            resume_ckpt_path = os.path.join(opt['save_dir'], "model_epoch6.pth")  # change to latest available
+            start_epoch = 30
+            resume_ckpt_path = os.path.join(opt['save_dir'], "model_epoch30.pth")  # change to latest available
 
             if os.path.exists(resume_ckpt_path):
                 print(f"🔁 Resuming from {resume_ckpt_path}")
                 model.load_state_dict(torch.load(resume_ckpt_path, map_location="cuda"))
-                start_epoch = 6  # must match checkpoint epoch
+                start_epoch = 30  # must match checkpoint epoch
 
             for epoch in range(start_epoch, max_epoch):
                 print(f"\n[Epoch {epoch+1}/{max_epoch}]")

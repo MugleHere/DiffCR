@@ -85,6 +85,19 @@ class DiffCR(BaseNetwork):
             y_t=y_t, t=t, clip_denoised=clip_denoised, y_cond=y_cond)
         noise = torch.randn_like(y_t) if any(t>0) else torch.zeros_like(y_t)
         return model_mean + noise * (0.5 * model_log_variance).exp()
+    
+    #######
+    @torch.no_grad()
+    def restoration_sample(self, y_cond):
+        """
+        Run fast deterministic inference: generate cloud-free image from Gaussian noise
+        conditioned on cloudy input.
+        """
+        noise = torch.randn_like(y_cond)
+        sample, _ = self.restoration(y_cond=y_cond, y_t=noise)
+        return sample
+    #######
+
 
     @torch.no_grad()
     def restoration(self, y_cond, y_t=None, y_0=None, mask=None, sample_num=8):
@@ -104,30 +117,61 @@ class DiffCR(BaseNetwork):
                 ret_arr = torch.cat([ret_arr, y_t], dim=0)
         return y_t, ret_arr
 
+    #def forward(self, y_0, y_cond=None, mask=None, noise=None):
+    #   # Sampling from p(gammas)
+    #    b, *_ = y_0.shape
+    #    t = torch.randint(1, self.num_timesteps, (b,), device=y_0.device).long()
+    #    gamma_t1 = extract(self.gammas, t - 1, x_shape=(1, 1))
+    #    sqrt_gamma_t2 = extract(self.gammas, t, x_shape=(1, 1))
+    #    sample_gammas = (sqrt_gamma_t2 - gamma_t1) * torch.rand((b, 1), device=y_0.device) + gamma_t1
+    #    sample_gammas = sample_gammas.view(-1).to(y_0.device).float()  # Ensure correct shape + device + dtype
+#
+    #    noise = default(noise, lambda: torch.randn_like(y_0))
+    #    y_noisy = self.q_sample(
+    #        y_0=y_0, sample_gammas=sample_gammas.view(-1, 1, 1, 1), noise=noise
+    #    )
+#
+    #    # Redundant safety check (guaranteed correct input to denoise_fn)
+    #    sample_gammas = sample_gammas.view(-1, 1).to(dtype=y_0.dtype, device=y_0.device)
+#
+    #    if mask is not None:
+    #        noise_hat = self.denoise_fn(torch.cat([y_cond, y_noisy * mask + (1. - mask) * y_0], dim=1), sample_gammas)
+    #        loss = self.loss_fn(mask * noise, mask * noise_hat)
+    #    else:
+    #        noise_hat = self.denoise_fn(torch.cat([y_cond, y_noisy], dim=1), sample_gammas)
+    #        loss = self.loss_fn(noise, noise_hat)
+    #    return loss
+    #############
+
+    # Changed the loss to be calculated on dataprediction instead of noise?
     def forward(self, y_0, y_cond=None, mask=None, noise=None):
-       # Sampling from p(gammas)
         b, *_ = y_0.shape
         t = torch.randint(1, self.num_timesteps, (b,), device=y_0.device).long()
         gamma_t1 = extract(self.gammas, t - 1, x_shape=(1, 1))
         sqrt_gamma_t2 = extract(self.gammas, t, x_shape=(1, 1))
         sample_gammas = (sqrt_gamma_t2 - gamma_t1) * torch.rand((b, 1), device=y_0.device) + gamma_t1
-        sample_gammas = sample_gammas.view(-1).to(y_0.device).float()  # Ensure correct shape + device + dtype
+        sample_gammas = sample_gammas.view(-1).to(y_0.device).float()
 
         noise = default(noise, lambda: torch.randn_like(y_0))
         y_noisy = self.q_sample(
             y_0=y_0, sample_gammas=sample_gammas.view(-1, 1, 1, 1), noise=noise
         )
 
-        # Redundant safety check (guaranteed correct input to denoise_fn)
         sample_gammas = sample_gammas.view(-1, 1).to(dtype=y_0.dtype, device=y_0.device)
 
         if mask is not None:
-            noise_hat = self.denoise_fn(torch.cat([y_cond, y_noisy * mask + (1. - mask) * y_0], dim=1), sample_gammas)
-            loss = self.loss_fn(mask * noise, mask * noise_hat)
+            input_tensor = torch.cat([y_cond, y_noisy * mask + (1. - mask) * y_0], dim=1)
+            noise_hat = self.denoise_fn(input_tensor, sample_gammas)
+            y_0_hat = self.predict_start_from_noise(y_noisy * mask + (1. - mask) * y_0, t, noise_hat)
+            loss = self.loss_fn(mask * y_0_hat, mask * y_0)
         else:
-            noise_hat = self.denoise_fn(torch.cat([y_cond, y_noisy], dim=1), sample_gammas)
-            loss = self.loss_fn(noise, noise_hat)
+            input_tensor = torch.cat([y_cond, y_noisy], dim=1)
+            noise_hat = self.denoise_fn(input_tensor, sample_gammas)
+            y_0_hat = self.predict_start_from_noise(y_noisy, t, noise_hat)
+            loss = self.loss_fn(y_0_hat, y_0)
+
         return loss
+########
 
 
 
@@ -182,6 +226,11 @@ def make_beta_schedule(schedule, n_timestep, linear_start=1e-6, linear_end=1e-2,
         alphas = alphas / alphas[0]
         betas = 1 - alphas[1:] / alphas[:-1]
         betas = betas.clamp(max=0.999)
+    elif schedule == 'sigmoid':
+        x = np.linspace(-6, 6, n_timestep)
+        betas = 1 / (1 + np.exp(-x))
+        betas = (betas - betas.min()) / (betas.max() - betas.min())
+        betas = linear_start + (linear_end - linear_start) * betas
     else:
         raise NotImplementedError(schedule)
     return betas
