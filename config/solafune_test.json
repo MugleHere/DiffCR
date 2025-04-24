@@ -45,30 +45,31 @@
           "name": ["models.network", "DiffCR"],
           "args": {
             "unet": {
-              "in_channel": 24,
-              "out_channel": 12,
-              "inner_channel": 32,
-              "channel_mults": [1, 2],
-              "res_blocks": 2,
-              "dropout": 0.1,
-              "attn_res": [],
-              "norm_groups": 32,
-              "image_size": 128
-            },
-            "beta_schedule": {
-              "train": {
-                "schedule": "sigmoid",
-                "n_timestep": 1000,
-                "linear_start": 1e-6,
-                "linear_end": 0.01
+                "in_channel": 24,
+                "out_channel": 12,
+                "inner_channel": 48,                    
+                "channel_mults": [1, 2, 4],            
+                "res_blocks": [1, 2, 2],               
+                "dropout": 0.05,                       
+                "attn_res": [32],                      
+                "norm_groups": 16,                     
+                "image_size": 128                      
               },
-              "test": {
-                "schedule": "sigmoid",
-                "n_timestep": 5,
-                "linear_start": 1e-6,
-                "linear_end": 0.01
-              }
+
+          "beta_schedule": {
+            "train": {
+              "schedule": "sigmoid",
+              "n_timestep": 1000,
+              "linear_start": 1e-6,
+              "linear_end": 0.01
+            },
+            "test": {
+              "schedule": "sigmoid",
+              "n_timestep": 5,
+              "linear_start": 1e-6,
+              "linear_end": 0.01
             }
+          }
 
           }
         }
