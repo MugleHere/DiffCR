@@ -125,7 +125,7 @@ class PositionalEncoding(nn.Module):
         encoding = torch.cat([torch.sin(encoding), torch.cos(encoding)], dim=-1)
         #print(f"PosEnc input device: {noise_level.device}, output shape: {encoding.shape}")
 
-        return encoding.to(noise_level.device)  # 💥 ensure output is on CUDA
+        return encoding.to(noise_level.device)  # ensure output is on CUDA
 
 
 

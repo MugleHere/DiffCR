@@ -139,9 +139,7 @@ def parse(args):
             opt['path'][key] = os.path.join(experiments_root, path)
             mkdirs(opt['path'][key])
 
-#    ''' debug mode '''
-#    if 'debug' in opt['name']:
-#        opt['train'].update(opt['debug'])
+
     ''' debug mode '''
     if 'debug' in opt['name'] and 'debug' in opt:
         opt['train'].update(opt['debug'])

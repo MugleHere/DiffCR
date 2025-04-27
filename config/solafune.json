@@ -1,5 +1,5 @@
 {
-    "name": "solafune",
+    "name": "solafune", 
     "phase": "train",
     "seed": 42,
     "distributed": false,

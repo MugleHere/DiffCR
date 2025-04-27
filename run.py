@@ -106,15 +106,15 @@ def main_worker(gpu, ngpus_per_node, opt):
             model.train()
             dataloader = phase_loader
             optimizer = torch.optim.Adam(model.parameters(), lr=opt.get('lr', 1e-4))
-            max_epoch = opt.get('epochs', 100)
+            max_epoch = opt.get('epochs', 50)
             # === Resume logic ===
-            start_epoch = 0
-            resume_ckpt_path = os.path.join(opt['save_dir'], "model_epoch0.pth")  # change to latest available
+            start_epoch = 17
+            resume_ckpt_path = os.path.join(opt['save_dir'], "model_epoch17.pth")  # change to latest available
 
             if os.path.exists(resume_ckpt_path):
-                print(f"🔁 Resuming from {resume_ckpt_path}")
+                print(f"Resuming from {resume_ckpt_path}")
                 model.load_state_dict(torch.load(resume_ckpt_path, map_location="cuda"))
-                start_epoch = 0  # must match checkpoint epoch
+                start_epoch = 17  # must match checkpoint epoch
 
             for epoch in range(start_epoch, max_epoch):
                 print(f"\n[Epoch {epoch+1}/{max_epoch}]")
@@ -134,7 +134,7 @@ def main_worker(gpu, ngpus_per_node, opt):
                 save_path = os.path.join(checkpoint_dir, f"model_epoch{epoch+1}.pth")
                 torch.save(model.state_dict(), save_path)
         elif opt['phase'] == 'test':
-            model.load_state_dict(torch.load("checkpoints/model_epoch6.pth"))
+            model.load_state_dict(torch.load("checkpoints/model_epoch17.pth"))
             model.eval()
 
             for i, data in enumerate(phase_loader):
@@ -145,12 +145,12 @@ def main_worker(gpu, ngpus_per_node, opt):
                     dummy_y0 = torch.zeros_like(cond)
                     output, _ = model.restoration(y_cond=cond, y_0=dummy_y0)  # shape: [1, 12, H, W]
                 print("after restoration")
-                # === Save 12-channel .tif for future use ===
+                # Save 12-channel .tif for future use
                 out_np = output[0].cpu().numpy().astype('float32')  # [12, H, W]
                 out_tif_path = os.path.join(opt['path']['result'], f"{filename}.tif")
                 tifffile.imwrite(out_tif_path, out_np)
                 print("saved 12 channel")
-                # === Save RGB visualization as PNG ===
+                # Save RGB visualization as PNG for visualization
                 rgb_output = tensor_to_rgb(output)  # [3, H, W], float in [0, 1]
                 out_png_path = os.path.join(opt['path']['result'], f"{filename}.png")
                 vutils.save_image(rgb_output, out_png_path)
